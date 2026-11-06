@@ -35,5 +35,3 @@ bash run.sh real_mixed_workload dolly_long_first_fixed128
 Dolly 기반 workload의 원본은 Databricks의 `databricks-dolly-15k`입니다.
 출처: https://huggingface.co/datasets/databricks/databricks-dolly-15k
 생성 스크립트에 명시된 데이터 라이선스는 CC BY-SA 3.0입니다. Dolly에서 파생된 데이터는 해당 라이선스와 원본 저작자 표시를 따릅니다. 이 안내는 프로젝트 코드 전체에 대한 라이선스 부여를 의미하지 않습니다.
-
-가상환경, 로컬 설정(`config.env`), 로그 및 모델 가중치는 Git 추적에서 제외합니다.
