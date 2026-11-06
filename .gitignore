@@ -1,0 +1,23 @@
+# Local environments and settings
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+config.env
+
+# Runtime artifacts
+__pycache__/
+*.py[cod]
+*.log
+.ipynb_checkpoints/
+.DS_Store
+
+# Model weights and checkpoints
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Input sample contains private-key-formatted text
+data/speed_bench/throughput_1k.jsonl

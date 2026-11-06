@@ -1,0 +1,5 @@
+생성 파일	                             목적
+dolly_mixed_random_fixed128.jsonl	    Short/Long 80:20 무작위 혼합
+dolly_long_first_fixed128.jsonl	        Long Request가 먼저 도착
+dolly_short_first_fixed128.jsonl	    Short Request가 먼저 도착
+dolly_mixed_random_natural.jsonl	    실제 응답 길이를 참고한 가변 Output Length
