@@ -7,6 +7,12 @@ from collections.abc import Iterable
 from dataclasses import replace
 from typing import Any
 
+#for experiment -> check Token Budget and KV cache allocation
+import atexit
+import csv
+import os
+#
+
 from vllm.compilation.cuda_graph import CUDAGraphStat
 from vllm.config import KVEventsConfig, VllmConfig
 from vllm.distributed.ec_transfer.ec_connector.base import (
@@ -410,6 +416,43 @@ class Scheduler(SchedulerInterface):
         # async KV loads). Their remaining-block reservation gates async loads.
         self._inflight_prefills: set[Request] = set()
 
+        # Scheduler instrumentation
+        # Save scheduler info on CSV file
+        trace_path = os.getenv("VLLM_SCHED_TRACE")
+
+        self._trace_fp = None
+        self._trace_writer = None
+
+        if trace_path:
+            self._trace_fp = open(
+                trace_path, "w", newline="", buffering=1024 * 1024
+            )
+            self._trace_writer = csv.writer(self._trace_fp)
+
+            self._trace_writer.writerow([
+                "step",
+                "timestamp",
+                "running_before",
+                "waiting_before",
+                "running_after",
+                "waiting_after",
+                "token_budget_initial",
+                "token_budget_used",
+                "token_budget_remaining",
+                "input_budget_initial",
+                "input_budget_used",
+                "input_budget_remaining",
+                "scheduled_requests",
+                "kv_fail_running",
+                "kv_fail_waiting",
+                "preemptions",
+                "kv_cache_usage",
+                "token_exhausted_with_waiting",
+                "input_exhausted_with_waiting",
+            ])
+
+            atexit.register(self._trace_fp.close)
+
     def _mamba_block_aligned_split(
         self,
         request: Request,
@@ -586,6 +629,16 @@ class Scheduler(SchedulerInterface):
             # Do not schedule any requests when paused.
             token_budget = 0
 
+        # Instrumentation: initial state
+        trace_token_budget_initial = token_budget
+        trace_input_budget_initial = input_budget
+
+        trace_running_before = len(self.running)
+        _, trace_waiting_before = self.get_request_counts()
+
+        trace_kv_fail_running = 0
+        trace_kv_fail_waiting = 0
+
         # Encoder-related.
         scheduled_encoder_inputs: dict[str, list[int]] = {}
         encoder_compute_budget = self.max_num_encoder_input_tokens
@@ -731,6 +784,10 @@ class Scheduler(SchedulerInterface):
                         num_new_tokens,
                         num_lookahead_tokens=self.num_lookahead_tokens,
                     )
+
+                    #KV allocation failure attempts on running requests
+                    if new_blocks is None:
+                        trace_kv_fail_running += 1
 
                     if new_blocks is not None:
                         # The request can be scheduled.
@@ -1173,6 +1230,9 @@ class Scheduler(SchedulerInterface):
                 if new_blocks is None:
                     # The request cannot be scheduled.
 
+                    #KV allocation failiure of Waiting requests
+                    trace_kv_fail_waiting += 1
+
                     # NOTE: we need to untouch the request from the encode cache
                     # manager
                     if request.has_encoder_inputs:
@@ -1453,6 +1513,39 @@ class Scheduler(SchedulerInterface):
 
         with record_function_or_nullcontext("schedule: update_after_schedule"):
             self._update_after_schedule(scheduler_output)
+
+        
+        # Instrumentation: record the result of this scheduling step
+        if self._trace_writer is not None:
+            _, waiting_after = self.get_request_counts()
+
+            self._trace_writer.writerow([
+                self.current_step,
+                scheduled_timestamp,
+                trace_running_before,
+                trace_waiting_before,
+                len(self.running),
+                waiting_after,
+                trace_token_budget_initial,
+                trace_token_budget_initial - token_budget,
+                token_budget,
+                trace_input_budget_initial,
+                trace_input_budget_initial - input_budget,
+                input_budget,
+                len(num_scheduled_tokens),
+                trace_kv_fail_running,
+                trace_kv_fail_waiting,
+                len(preempted_reqs),
+                self.kv_cache_manager.usage,
+                int(waiting_after > 0 and token_budget == 0),
+                int(waiting_after > 0 and input_budget <= draft_slots),
+            ])
+
+            # Flush periodically rather than on every step.
+            if self.current_step % 256 == 0:
+                self._trace_fp.flush()
+
+
         return scheduler_output
 
     def _build_kv_connector_meta(

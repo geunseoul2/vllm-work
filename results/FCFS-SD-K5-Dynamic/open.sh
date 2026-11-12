@@ -5,6 +5,8 @@ MODEL=Qwen/Qwen3-8B
 GPU_MEMORY_UTILIZATION=0.95
 MAX_MODEL_LEN=2048
 
+export VLLM_SCHED_TRACE=/tmp/fcfs_rps4_steps.csv
+
 # Draft Model speculative execution
 CUDA_VISIBLE_DEVICES=1 vllm serve Qwen/Qwen3-8B \
   --host "$HOST" \

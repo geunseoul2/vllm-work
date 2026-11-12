@@ -20,10 +20,10 @@ if [[ ! -f "$DATASET" ]]; then
 fi
 
 # 결과 저장 디렉터리
-mkdir -p "results/$NAME"
+mkdir -p "latency_test"
 
 # Request Rate별 실험
-for RPS in 2 4 6 8; do
+for RPS in 4; do
     echo "=================================="
     echo "Workload: $NAME"
     echo "Request Rate: $RPS req/s"
@@ -57,7 +57,7 @@ for RPS in 2 4 6 8; do
         --metric-percentiles 50,90,95,99 \
         --save-result \
         --save-detailed \
-        --result-dir "results/$NAME" \
+        --result-dir "latency_test" \
         --result-filename "${NAME}_rps${RPS}.json" \
         "${FLAGS[@]}"
 
